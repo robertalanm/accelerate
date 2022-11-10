@@ -58,8 +58,9 @@ def create_tokenizer():
 def create_genesis_dataset(config):
     # find all the text files inside the directory ~/genesis
     # and create a list of their paths
+    dataset_path = os.path.expanduser('~') + '/genesis'
     file_paths = []
-    for root, dirs, files in os.walk("~/genesis"):
+    for root, dirs, files in os.walk(dataset_path):
         for file in files:
             if file.endswith(".txt"):
                 file_paths.append(os.path.join(root, file))
