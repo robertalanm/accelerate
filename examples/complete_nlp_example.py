@@ -71,8 +71,8 @@ def create_genesis_dataset(config):
     datasets_args = {}
     datasets_args["keep_linebreaks"] = True
     for file_path in file_paths:
-        data = load_dataset("text", data_files=file_path, **datasets_args)
-        pdb.set_trace()
+        data = load_dataset("text", data_files=file_path, **datasets_args)['train']
+        # pdb.set_trace()
         datasets_list.append(data)
     # pdb.set_trace()
     dataset = interleave_datasets(datasets_list)
