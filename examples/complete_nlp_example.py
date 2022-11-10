@@ -165,7 +165,7 @@ def training_function(config, args):
     set_seed(seed)
 
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    model = AutoModelForCausalLM.from_pretrained("sgugger/sharded-gpt-j-6B", return_dict=True)
+    model = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M", return_dict=True)
     # glue_metric = evaluate.load('glue', 'sst2')
     frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
     # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
@@ -259,32 +259,32 @@ def training_function(config, args):
                 outputs = model(**batch)
             predictions = outputs.logits.argmax(dim=-1)
             predictions, references = accelerator.gather_for_metrics((predictions, batch["labels"]))
-            glue_metric.add_batch(
-                predictions=predictions,
-                references=references,
-            )
+            # glue_metric.add_batch(
+            #     predictions=predictions,
+            #     references=references,
+            # )
             frugalscore.add_batch(
                 predictions=predictions,
                 references=references,
             )
 
             
-        glue_results = glue_metric.compute()
+        # glue_results = glue_metric.compute()
         frugalscore_results = frugalscore.compute()
         # Use accelerator.print to print only on the main process.
-        accelerator.print(f"epoch {epoch}:", glue_results)
+        # accelerator.print(f"epoch {epoch}:", glue_results)
         accelerator.print(f"epoch {epoch}:", frugalscore_results)
         if args.with_tracking:
-            accelerator.log(
-                {
-                    "name": "glue",
-                    "accuracy": glue_results["accuracy"],
-                    "f1": glue_results["f1"],
-                    "train_loss": total_loss.item() / len(train_dataloader),
-                    "epoch": epoch,
-                },
-                step=epoch,
-            )
+            # accelerator.log(
+            #     {
+            #         "name": "glue",
+            #         "accuracy": glue_results["accuracy"],
+            #         "f1": glue_results["f1"],
+            #         "train_loss": total_loss.item() / len(train_dataloader),
+            #         "epoch": epoch,
+            #     },
+            #     step=epoch,
+            # )
 
             accelerator.log(
                 {
