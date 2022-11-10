@@ -14,15 +14,19 @@
 # limitations under the License.
 import argparse
 import os
+import bittensor as bt
 
 import torch
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
+from typings import Sequence
+
 import evaluate
 from accelerate import Accelerator, DistributedType
-from datasets import load_dataset
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup, set_seed
+from datasets import load_dataset, interleave_datasets
+from transformers import AutoModelForCausalLM, get_linear_schedule_with_warmup, set_seed
+
 
 
 ########################################################################
@@ -46,6 +50,49 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, get_
 
 MAX_GPU_BATCH_SIZE = 16
 EVAL_BATCH_SIZE = 32
+
+
+def create_tokenizer():
+    return bt.tokenizer()
+
+def create_genesis_dataset(config):
+    # find all the text files inside the directory ~/genesis
+    # and create a list of their paths
+    file_paths = []
+    for root, dirs, files in os.walk("~/genesis"):
+        for file in files:
+            if file.endswith(".txt"):
+                file_paths.append(os.path.join(root, file))
+
+    # interleave the datasets
+    datasets = []
+    datasets_args = {}
+    datasets_args["keep_linebreaks"] = True
+    for file_path in file_paths:
+        datasets.append(load_dataset("text", data_files=file_path, **datasets_args))
+    dataset = interleave_datasets(datasets)
+
+    # convert to torch tensors
+    dataset = dataset.with_format("torch")
+
+    # tokenize the dataset
+    tokenizer = create_tokenizer()
+    def encode(examples):
+        return tokenizer(
+            examples["text"], truncation=True, max_length=int(config['n_positions'], padding="max_length")
+        )
+    
+    pre_dataset = dataset.map(encode, batched=True, remove_columns=["text", "meta"])
+
+    # shuffle the dataset and split it into train and validation with 75% and 25% respectively
+    seed, buffer_size = 12976371472801, 10_000
+    pre_dataset = pre_dataset.shuffle(seed, buffer_size=buffer_size)
+    train_dataset = pre_dataset.select(range(int(len(pre_dataset) * 0.75)))
+    val_dataset = pre_dataset.select(range(int(len(pre_dataset) * 0.75), len(pre_dataset)))
+
+    return train_dataset, val_dataset, tokenizer
+
+
 
 
 def training_function(config, args):
@@ -79,27 +126,17 @@ def training_function(config, args):
         run = os.path.split(__file__)[-1].split(".")[0]
         accelerator.init_trackers(run, config)
 
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-    datasets = load_dataset("glue", "mrpc")
-    metric = evaluate.load("glue", "mrpc")
-
-    def tokenize_function(examples):
-        # max_length=None => use the model max length (it's actually the default)
-        outputs = tokenizer(examples["sentence1"], examples["sentence2"], truncation=True, max_length=None)
-        return outputs
 
     # Apply the method we just defined to all the examples in all the splits of the dataset
     # starting with the main process first:
     with accelerator.main_process_first():
-        tokenized_datasets = datasets.map(
-            tokenize_function,
-            batched=True,
-            remove_columns=["idx", "sentence1", "sentence2"],
-        )
+        # Initialize the tokenizer and model
+        # TODO: Config
+        train_dataset, val_dataset, tokenizer = create_genesis_dataset(config)  
 
     # We also rename the 'label' column to 'labels' which is the expected name for labels by the models of the
     # transformers library
-    tokenized_datasets = tokenized_datasets.rename_column("label", "labels")
+    # tokenized_datasets = tokenized_datasets.rename_column("label", "labels")
 
     # If the batch size is too big we use gradient accumulation
     gradient_accumulation_steps = 1
@@ -115,17 +152,18 @@ def training_function(config, args):
 
     # Instantiate dataloaders.
     train_dataloader = DataLoader(
-        tokenized_datasets["train"], shuffle=True, collate_fn=collate_fn, batch_size=batch_size
+        train_dataset, shuffle=True, collate_fn=collate_fn, batch_size=batch_size
     )
     eval_dataloader = DataLoader(
-        tokenized_datasets["validation"], shuffle=False, collate_fn=collate_fn, batch_size=EVAL_BATCH_SIZE
+        val_dataset, shuffle=False, collate_fn=collate_fn, batch_size=EVAL_BATCH_SIZE
     )
 
     set_seed(seed)
 
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased", return_dict=True)
-
+    model = AutoModelForCausalLM.from_pretrained("sgugger/sharded-gpt-j-6B", return_dict=True)
+    glue_metric = evaluate.load('glue', 'sst2')
+    frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
     # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
     # Note that if you are placing tensors on devices manually, this line absolutely needs to be before the optimizer
     # creation otherwise training will not work on TPU (`accelerate` will kindly throw an error to make us aware of that).
@@ -217,19 +255,37 @@ def training_function(config, args):
                 outputs = model(**batch)
             predictions = outputs.logits.argmax(dim=-1)
             predictions, references = accelerator.gather_for_metrics((predictions, batch["labels"]))
-            metric.add_batch(
+            glue_metric.add_batch(
+                predictions=predictions,
+                references=references,
+            )
+            frugalscore.add_batch(
                 predictions=predictions,
                 references=references,
             )
 
-        eval_metric = metric.compute()
+            
+        glue_results = glue_metric.compute()
+        frugalscore_results = frugalscore.compute()
         # Use accelerator.print to print only on the main process.
-        accelerator.print(f"epoch {epoch}:", eval_metric)
+        accelerator.print(f"epoch {epoch}:", glue_results)
+        accelerator.print(f"epoch {epoch}:", frugalscore_results)
         if args.with_tracking:
             accelerator.log(
                 {
-                    "accuracy": eval_metric["accuracy"],
-                    "f1": eval_metric["f1"],
+                    "name": "glue",
+                    "accuracy": glue_results["accuracy"],
+                    "f1": glue_results["f1"],
+                    "train_loss": total_loss.item() / len(train_dataloader),
+                    "epoch": epoch,
+                },
+                step=epoch,
+            )
+
+            accelerator.log(
+                {
+                    "name": "frugalscore",
+                    "scores": frugalscore_results["scores"],
                     "train_loss": total_loss.item() / len(train_dataloader),
                     "epoch": epoch,
                 },
