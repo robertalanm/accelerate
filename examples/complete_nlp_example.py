@@ -85,7 +85,6 @@ def create_genesis_dataset(config, seq_len: int):
     def encode(examples):
         return tokenizer(
             examples["text"], truncation=True, max_length=seq_len, padding="max_length")
-        )
     
     pre_dataset = dataset.map(encode, batched=False, remove_columns=["text"])
 
