@@ -90,7 +90,7 @@ def create_genesis_dataset(config, seq_len: int):
 
     # shuffle the dataset and split it into train and validation with 75% and 25% respectively
     seed, buffer_size = 12976371472801, 10_000
-    pre_dataset = pre_dataset.shuffle(seed, buffer_size=buffer_size)
+    pre_dataset = pre_dataset.shuffle(seed, buffer_size)
     train_dataset = pre_dataset.select(range(int(len(pre_dataset) * 0.75)))
     val_dataset = pre_dataset.select(range(int(len(pre_dataset) * 0.75), len(pre_dataset)))
 
