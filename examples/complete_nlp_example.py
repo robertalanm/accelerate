@@ -66,12 +66,12 @@ def create_genesis_dataset(config):
                 file_paths.append(os.path.join(root, file))
 
     # interleave the datasets
-    datasets = []
+    datasets_list = []
     datasets_args = {}
     datasets_args["keep_linebreaks"] = True
     for file_path in file_paths:
-        datasets.append(load_dataset("text", data_files=file_path, **datasets_args))
-    dataset = interleave_datasets(datasets)
+        datasets_list.append(load_dataset("text", data_files=file_path, **datasets_args))
+    dataset = interleave_datasets(datasets_list)
 
     # convert to torch tensors
     dataset = dataset.with_format("torch")
