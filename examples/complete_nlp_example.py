@@ -87,7 +87,7 @@ def create_genesis_dataset(config):
             examples["text"], truncation=True, max_length=int(config['n_positions'], padding="max_length")
         )
     
-    pre_dataset = dataset.map(encode, batched=True, remove_columns=["text", "meta"])
+    pre_dataset = dataset.map(encode, batched=True, remove_columns=["text"])
 
     # shuffle the dataset and split it into train and validation with 75% and 25% respectively
     seed, buffer_size = 12976371472801, 10_000
