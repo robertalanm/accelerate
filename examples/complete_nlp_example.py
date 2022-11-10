@@ -90,7 +90,7 @@ def create_genesis_dataset(config, seq_len: int):
 
     # shuffle the dataset and split it into train and validation with 75% and 25% respectively
     seed, buffer_size = 12976371472801, 10_000
-    pre_dataset = pre_dataset.shuffle(seed, buffer_size)
+    pre_dataset = pre_dataset.shuffle(seed)
     train_dataset = pre_dataset.select(range(int(len(pre_dataset) * 0.75)))
     val_dataset = pre_dataset.select(range(int(len(pre_dataset) * 0.75), len(pre_dataset)))
 
@@ -124,28 +124,19 @@ def training_function(config, args):
     num_epochs = int(config["num_epochs"])
     seed = int(config["seed"])
     batch_size = int(config["batch_size"])
+    n_positions = 2048
 
     # We need to initialize the trackers we use, and also store our configuration
     if args.with_tracking:
         run = os.path.split(__file__)[-1].split(".")[0]
         accelerator.init_trackers(run, config)
 
-
-    # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    model = AutoModelForCausalLM.from_pretrained("sgugger/sharded-gpt-j-6B", return_dict=True)
-    # glue_metric = evaluate.load('glue', 'sst2')
-    frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
-    # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
-    # Note that if you are placing tensors on devices manually, this line absolutely needs to be before the optimizer
-    # creation otherwise training will not work on TPU (`accelerate` will kindly throw an error to make us aware of that).
-    model = model.to(accelerator.device)
-
     # Apply the method we just defined to all the examples in all the splits of the dataset
     # starting with the main process first:
     with accelerator.main_process_first():
         # Initialize the tokenizer and model
         # TODO: Config
-        train_dataset, val_dataset, tokenizer = create_genesis_dataset(config, model.config.n_positions)  
+        train_dataset, val_dataset, tokenizer = create_genesis_dataset(config, n_positions)  
 
     # We also rename the 'label' column to 'labels' which is the expected name for labels by the models of the
     # transformers library
@@ -172,6 +163,15 @@ def training_function(config, args):
     )
 
     set_seed(seed)
+
+    # Instantiate the model (we build the model here so that the seed also control new weights initialization)
+    model = AutoModelForCausalLM.from_pretrained("sgugger/sharded-gpt-j-6B", return_dict=True)
+    # glue_metric = evaluate.load('glue', 'sst2')
+    frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
+    # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
+    # Note that if you are placing tensors on devices manually, this line absolutely needs to be before the optimizer
+    # creation otherwise training will not work on TPU (`accelerate` will kindly throw an error to make us aware of that).
+    model = model.to(accelerator.device)
 
     # Instantiate optimizer
     optimizer = AdamW(params=model.parameters(), lr=lr)
