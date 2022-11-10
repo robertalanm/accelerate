@@ -133,7 +133,7 @@ def training_function(config, args):
 
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
     model = AutoModelForCausalLM.from_pretrained("sgugger/sharded-gpt-j-6B", return_dict=True)
-    glue_metric = evaluate.load('glue', 'sst2')
+    # glue_metric = evaluate.load('glue', 'sst2')
     frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
     # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
     # Note that if you are placing tensors on devices manually, this line absolutely needs to be before the optimizer
