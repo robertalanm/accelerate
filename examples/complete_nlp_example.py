@@ -231,7 +231,8 @@ def training_function(config, args):
             # We could avoid this line since we set the accelerator with `device_placement=True`.
             batch.to(accelerator.device)
             outputs = model(**batch)
-            pdb.set_trace()
+            if accelerator.is_main_process:
+                pdb.set_trace()
             loss = outputs.loss
             loss = loss / gradient_accumulation_steps
             # We keep track of the loss at each epoch
