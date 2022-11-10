@@ -49,7 +49,7 @@ from transformers import AutoModelForCausalLM, get_linear_schedule_with_warmup, 
 ########################################################################
 
 
-MAX_GPU_BATCH_SIZE = 16
+MAX_GPU_BATCH_SIZE = 2
 EVAL_BATCH_SIZE = 32
 
 
