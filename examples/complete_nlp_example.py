@@ -78,12 +78,11 @@ def create_genesis_dataset(config):
     dataset = interleave_datasets(datasets_list)
 
     # convert to torch tensors
-    dataset = dataset.with_format("torch")
+    # dataset = dataset.with_format("torch")
 
     # tokenize the dataset
     tokenizer = create_tokenizer()
     def encode(examples):
-        pdb.set_trace()
         return tokenizer(
             examples["text"], truncation=True, max_length=int(config['n_positions'], padding="max_length")
         )
