@@ -56,7 +56,7 @@ EVAL_BATCH_SIZE = 32
 def create_tokenizer():
     return bt.tokenizer()
 
-def create_genesis_dataset(config, max_length: int):
+def create_genesis_dataset(config, seq_len: int):
     # find all the text files inside the directory ~/genesis
     # and create a list of their paths
     dataset_path = os.path.expanduser('~') + '/genesis'
@@ -84,7 +84,7 @@ def create_genesis_dataset(config, max_length: int):
     tokenizer = create_tokenizer()
     def encode(examples):
         return tokenizer(
-            examples["text"], truncation=True, max_length=max_length, padding="max_length")
+            examples["text"], truncation=True, max_length=seq_len, padding="max_length")
         )
     
     pre_dataset = dataset.map(encode, batched=False, remove_columns=["text"])
