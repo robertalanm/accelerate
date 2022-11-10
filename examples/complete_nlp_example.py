@@ -72,7 +72,7 @@ def create_genesis_dataset(config):
     datasets_args["keep_linebreaks"] = True
     for file_path in file_paths:
         datasets_list.append(load_dataset("text", data_files=file_path, **datasets_args)['text'])
-    pdb.set_trace()
+    # pdb.set_trace()
     dataset = interleave_datasets(datasets_list)
 
     # convert to torch tensors
