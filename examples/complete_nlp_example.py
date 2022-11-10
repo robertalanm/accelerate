@@ -56,7 +56,7 @@ EVAL_BATCH_SIZE = 32
 def create_tokenizer():
     return bt.tokenizer()
 
-def create_genesis_dataset(config):
+def create_genesis_dataset(config, max_length: int):
     # find all the text files inside the directory ~/genesis
     # and create a list of their paths
     dataset_path = os.path.expanduser('~') + '/genesis'
@@ -84,7 +84,7 @@ def create_genesis_dataset(config):
     tokenizer = create_tokenizer()
     def encode(examples):
         return tokenizer(
-            examples["text"], truncation=True, max_length=int(config['n_positions'], padding="max_length")
+            examples["text"], truncation=True, max_length=max_length, padding="max_length")
         )
     
     pre_dataset = dataset.map(encode, batched=False, remove_columns=["text"])
@@ -132,12 +132,21 @@ def training_function(config, args):
         accelerator.init_trackers(run, config)
 
 
+    # Instantiate the model (we build the model here so that the seed also control new weights initialization)
+    model = AutoModelForCausalLM.from_pretrained("sgugger/sharded-gpt-j-6B", return_dict=True)
+    glue_metric = evaluate.load('glue', 'sst2')
+    frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
+    # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
+    # Note that if you are placing tensors on devices manually, this line absolutely needs to be before the optimizer
+    # creation otherwise training will not work on TPU (`accelerate` will kindly throw an error to make us aware of that).
+    model = model.to(accelerator.device)
+
     # Apply the method we just defined to all the examples in all the splits of the dataset
     # starting with the main process first:
     with accelerator.main_process_first():
         # Initialize the tokenizer and model
         # TODO: Config
-        train_dataset, val_dataset, tokenizer = create_genesis_dataset(config)  
+        train_dataset, val_dataset, tokenizer = create_genesis_dataset(config, model.config.n_positions)  
 
     # We also rename the 'label' column to 'labels' which is the expected name for labels by the models of the
     # transformers library
@@ -164,15 +173,6 @@ def training_function(config, args):
     )
 
     set_seed(seed)
-
-    # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    model = AutoModelForCausalLM.from_pretrained("sgugger/sharded-gpt-j-6B", return_dict=True)
-    glue_metric = evaluate.load('glue', 'sst2')
-    frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
-    # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
-    # Note that if you are placing tensors on devices manually, this line absolutely needs to be before the optimizer
-    # creation otherwise training will not work on TPU (`accelerate` will kindly throw an error to make us aware of that).
-    model = model.to(accelerator.device)
 
     # Instantiate optimizer
     optimizer = AdamW(params=model.parameters(), lr=lr)
