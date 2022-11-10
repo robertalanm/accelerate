@@ -83,6 +83,7 @@ def create_genesis_dataset(config):
     # tokenize the dataset
     tokenizer = create_tokenizer()
     def encode(examples):
+        pdb.set_trace()
         return tokenizer(
             examples["text"], truncation=True, max_length=int(config['n_positions'], padding="max_length")
         )
