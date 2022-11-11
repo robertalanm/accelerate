@@ -15,6 +15,7 @@
 import argparse
 import os
 import bittensor as bt
+from bittensor._neuron.text.core_server.nucleus_impl import server
 
 import pdb
 import torch
@@ -163,9 +164,10 @@ def training_function(config, args):
     )
 
     set_seed(seed)
-
+    server_config = server.config()
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    model = GPTNeoForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
+    # model = GPTNeoForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
+    model = server(config=server_config)
     # glue_metric = evaluate.load('glue', 'sst2')
     frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
     # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
