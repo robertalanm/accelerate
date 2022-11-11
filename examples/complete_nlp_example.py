@@ -165,6 +165,7 @@ def training_function(config, args):
 
     set_seed(seed)
     server_config = server.config()
+    server_config.model_name = "EleutherAI/gpt-neo-125M"
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
     # model = GPTNeoForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
     model = server(config=server_config)
@@ -353,6 +354,7 @@ def main():
     )
     args = parser.parse_args()
     config = {"lr": 2e-5, "num_epochs": 3, "seed": 42, "batch_size": 16}
+    # bt_config = bt.config(parser=args)
     training_function(config, args)
 
 
