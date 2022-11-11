@@ -26,7 +26,7 @@ from typing import Sequence
 import evaluate
 from accelerate import Accelerator, DistributedType
 from datasets import load_dataset, interleave_datasets
-from transformers import AutoModelForCausalLM, get_linear_schedule_with_warmup, set_seed
+from transformers import AutoModelForCausalLM, get_linear_schedule_with_warmup, set_seed, GPTNeoForCausalLM
 
 
 
@@ -165,7 +165,7 @@ def training_function(config, args):
     set_seed(seed)
 
     # Instantiate the model (we build the model here so that the seed also control new weights initialization)
-    model = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M", return_dict=True)
+    model = GPTNeoForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
     # glue_metric = evaluate.load('glue', 'sst2')
     frugalscore = evaluate.load("frugalscore", "moussaKam/frugalscore_medium_bert-base_mover-score")
     # We could avoid this line since the accelerator is set with `device_placement=True` (default value).
